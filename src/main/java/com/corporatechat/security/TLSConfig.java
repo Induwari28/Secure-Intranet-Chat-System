@@ -1,6 +1,3 @@
-public class TLSConfig {
-    
-}
 package com.corporatechat.security;
 
 import java.nio.file.Path;
