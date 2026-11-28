@@ -37,12 +37,14 @@ class M4_FrameCodecTest {
 
     @Test
     void rejectsTruncatedHeaderAndPayload() {
-        assertThrows(EOFException.class,
+        EOFException truncatedHeader = assertThrows(EOFException.class,
                 () -> M4_FrameCodec.readFrame(new ByteArrayInputStream(new byte[] {0, 0})));
+        assertEquals(EOFException.class, truncatedHeader.getClass());
 
         byte[] truncatedPayload = ByteBuffer.allocate(Integer.BYTES + 1).putInt(2).put((byte) 1).array();
-        assertThrows(EOFException.class,
+        EOFException truncatedPayloadException = assertThrows(EOFException.class,
                 () -> M4_FrameCodec.readFrame(new ByteArrayInputStream(truncatedPayload)));
+        assertEquals(EOFException.class, truncatedPayloadException.getClass());
     }
 
     @Test
@@ -51,20 +53,33 @@ class M4_FrameCodecTest {
         byte[] oversizedLength = ByteBuffer.allocate(Integer.BYTES)
                 .putInt(M4_FrameCodec.MAX_FRAME_SIZE + 1).array();
 
-        assertThrows(IOException.class,
+        IOException negativeLengthException = assertThrows(IOException.class,
                 () -> M4_FrameCodec.readFrame(new ByteArrayInputStream(negativeLength)));
-        assertThrows(IOException.class,
+        assertEquals(IOException.class, negativeLengthException.getClass());
+
+        IOException oversizedLengthException = assertThrows(IOException.class,
                 () -> M4_FrameCodec.readFrame(new ByteArrayInputStream(oversizedLength)));
+        assertEquals(IOException.class, oversizedLengthException.getClass());
     }
 
     @Test
     void rejectsNullArgumentsAndOversizedPayload() {
-        assertThrows(IllegalArgumentException.class, () -> M4_FrameCodec.writeFrame(null, new byte[0]));
-        assertThrows(IllegalArgumentException.class, () -> M4_FrameCodec.writeFrame(new ByteArrayOutputStream(), null));
-        assertThrows(IllegalArgumentException.class, () -> M4_FrameCodec.readFrame(null));
-        assertThrows(IOException.class,
+        IllegalArgumentException nullOut = assertThrows(IllegalArgumentException.class,
+                () -> M4_FrameCodec.writeFrame(null, new byte[0]));
+        assertEquals(IllegalArgumentException.class, nullOut.getClass());
+
+        IllegalArgumentException nullPayload = assertThrows(IllegalArgumentException.class,
+                () -> M4_FrameCodec.writeFrame(new ByteArrayOutputStream(), null));
+        assertEquals(IllegalArgumentException.class, nullPayload.getClass());
+
+        IllegalArgumentException nullInput = assertThrows(IllegalArgumentException.class,
+                () -> M4_FrameCodec.readFrame(null));
+        assertEquals(IllegalArgumentException.class, nullInput.getClass());
+
+        IOException oversizedPayload = assertThrows(IOException.class,
                 () -> M4_FrameCodec.writeFrame(new ByteArrayOutputStream(),
                         new byte[M4_FrameCodec.MAX_FRAME_SIZE + 1]));
+        assertEquals(IOException.class, oversizedPayload.getClass());
     }
 
     @Test

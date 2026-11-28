@@ -1,6 +1,7 @@
 C:\Users\DINURI\Secure-Intranet-Chat-System\src\main\java\com\corporatechat\client\ChatClientApp.java
 C:\Users\DINURI\Secure-Intranet-Chat-System\src\main\java\com\corporatechat\client\ChatClientFrame.java
 C:\Users\DINURI\Secure-Intranet-Chat-System\src\main\java\com\corporatechat\client\ClientCryptoWrapper.java
+C:\Users\DINURI\Secure-Intranet-Chat-System\src\main\java\com\corporatechat\client\ClientMessageTransport.java
 C:\Users\DINURI\Secure-Intranet-Chat-System\src\main\java\com\corporatechat\client\LoopbackCryptoStub.java
 C:\Users\DINURI\Secure-Intranet-Chat-System\src\main\java\com\corporatechat\model\MessageDto.java
 C:\Users\DINURI\Secure-Intranet-Chat-System\src\main\java\com\corporatechat\nio\M4_FrameCodec.java

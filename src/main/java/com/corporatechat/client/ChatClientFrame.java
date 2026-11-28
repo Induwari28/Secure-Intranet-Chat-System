@@ -4,7 +4,6 @@ import java.awt.BorderLayout;
 import java.awt.FlowLayout;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
-import java.io.Closeable;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
@@ -28,7 +27,6 @@ import javax.swing.SwingUtilities;
 
 import com.corporatechat.model.MessageDto;
 import com.corporatechat.model.MessageDto.MessageType;
-import com.corporatechat.nio.M4_FrameCodec;
 
 public class ChatClientFrame extends JFrame {
 
@@ -40,7 +38,7 @@ public class ChatClientFrame extends JFrame {
     private final JTextField messageInput = new JTextField();
     private final JButton sendButton = new JButton("Send");
     private final JLabel statusLabel = new JLabel("Not connected");
-    private final Object outputLock = new Object();
+    private final Object attachLock = new Object();
     private final AtomicBoolean closed = new AtomicBoolean();
     private final ExecutorService sendExecutor = Executors.newSingleThreadExecutor(task -> {
         Thread thread = new Thread(task, "chat-client-send");
@@ -48,14 +46,9 @@ public class ChatClientFrame extends JFrame {
         return thread;
     });
 
-    private volatile InputStream input;
-    private volatile OutputStream output;
-    private volatile ClientCryptoWrapper crypto;
-    private volatile SecretKey sessionKey;
+    private volatile ClientMessageTransport transport;
     private volatile boolean connected;
     private boolean transportAttached;
-    private long sendSeq;
-    private volatile long recvSeq;
 
     public ChatClientFrame() {
         super("Corporate Chat");
@@ -108,18 +101,11 @@ public class ChatClientFrame extends JFrame {
 
     public final void attachTransport(InputStream input, OutputStream output,
             SecretKey sessionKey, ClientCryptoWrapper crypto) {
-        if (input == null || output == null || sessionKey == null || crypto == null) {
-            throw new IllegalArgumentException("Streams, session key, and crypto wrapper must not be null");
-        }
-
-        synchronized (outputLock) {
+        synchronized (attachLock) {
             if (transportAttached || closed.get()) {
                 throw new IllegalStateException("A transport is already attached or the client is closed");
             }
-            this.input = input;
-            this.output = output;
-            this.sessionKey = sessionKey;
-            this.crypto = crypto;
+            transport = new ClientMessageTransport(input, output, sessionKey, crypto);
             transportAttached = true;
             connected = true;
         }
@@ -166,15 +152,10 @@ public class ChatClientFrame extends JFrame {
 
     private void transmit(MessageDto message, String submittedText) {
         try {
-            synchronized (outputLock) {
-                if (!connected || closed.get()) {
-                    throw new IOException("Connection is closed");
-                }
-                long sequence = sendSeq;
-                byte[] encrypted = crypto.encrypt(message.toJsonBytes(), sessionKey, sequence);
-                M4_FrameCodec.writeFrame(output, encrypted);
-                sendSeq = sequence + 1;
+            if (!connected || closed.get()) {
+                throw new IOException("Connection is closed");
             }
+            transport.send(message);
 
             SwingUtilities.invokeLater(() -> {
                 if (submittedText.equals(messageInput.getText())) {
@@ -189,16 +170,12 @@ public class ChatClientFrame extends JFrame {
     private void receiveLoop() {
         try {
             while (!closed.get()) {
-                byte[] encrypted = M4_FrameCodec.readFrame(input);
-                if (encrypted == null) {
+                MessageDto message = transport.receive();
+                if (message == null) {
                     disconnect("Disconnected by server");
                     return;
                 }
 
-                long sequence = recvSeq;
-                byte[] json = crypto.decrypt(encrypted, sessionKey, sequence);
-                MessageDto message = MessageDto.fromJsonBytes(json);
-                recvSeq = sequence + 1;
                 String formatted = formatMessage(message);
                 SwingUtilities.invokeLater(() -> appendMessage(formatted));
             }
@@ -249,12 +226,21 @@ public class ChatClientFrame extends JFrame {
         if (!closed.compareAndSet(false, true)) {
             return;
         }
-        connected = false;
         sendExecutor.shutdownNow();
 
+        ClientMessageTransport activeTransport;
+        synchronized (attachLock) {
+            connected = false;
+            activeTransport = transport;
+        }
         String finalStatus = status;
-        finalStatus = closeResource(input, "input", finalStatus);
-        finalStatus = closeResource(output, "output", finalStatus);
+        if (activeTransport != null) {
+            try {
+                activeTransport.close();
+            } catch (IOException exception) {
+                finalStatus += " (failed to close transport: " + exception.getMessage() + ")";
+            }
+        }
         String displayStatus = finalStatus;
         SwingUtilities.invokeLater(() -> {
             sendButton.setEnabled(false);
@@ -262,15 +248,4 @@ public class ChatClientFrame extends JFrame {
         });
     }
 
-    private String closeResource(Closeable resource, String name, String status) {
-        if (resource == null) {
-            return status;
-        }
-        try {
-            resource.close();
-            return status;
-        } catch (IOException exception) {
-            return status + " (failed to close " + name + ": " + exception.getMessage() + ")";
-        }
-    }
 }

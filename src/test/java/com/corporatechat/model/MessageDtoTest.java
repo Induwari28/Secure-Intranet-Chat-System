@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import java.nio.charset.StandardCharsets;
 import org.junit.jupiter.api.Test;
 
 import com.corporatechat.model.MessageDto.MessageType;
@@ -29,8 +30,9 @@ class MessageDtoTest {
 
     @Test
     void malformedJsonRejected() {
-        assertThrows(IllegalArgumentException.class,
-                () -> MessageDto.fromJsonBytes("{not json".getBytes()));
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+            () -> MessageDto.fromJsonBytes("{not json".getBytes(StandardCharsets.UTF_8)));
+        assertEquals(IllegalArgumentException.class, exception.getClass());
     }
 
     @Test
